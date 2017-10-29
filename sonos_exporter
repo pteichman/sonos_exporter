@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 
 import argparse
+from collections import namedtuple
 import http
 import http.server
-import ifparser
 import prometheus_client
+import re
 import requests
 import soco
 import xml.etree.ElementTree as ElementTree
 
-from prometheus_client.core import REGISTRY, CounterMetricFamily, GaugeMetricFamily
+from prometheus_client.core import REGISTRY, GaugeMetricFamily
 
 
 def main():
@@ -42,15 +43,15 @@ class Collector(object):
         tx_packets = GaugeMetricFamily("sonos_tx_packets", "Transmitted packets",
             labels=["player", "device"])
 
-        for zone in soco.discover():
+        zones = soco.discover()
+        for zone in zones:
             url = "http://%s:1400/status/ifconfig" % zone.ip_address
+            body = requests.get(url).text
+            ifconfig = get_ifconfig(body)
 
-            ifconfig = get_ifconfig(requests.get(url).text)
-            ifdata = ifparser.Ifcfg(ifconfig)
+            for iface in parse_ifconfig(ifconfig):
+                device = iface.name
 
-            for key in ifdata.interfaces:
-                iface = ifdata.get_interface(key)
-                device = key.split()[0]
                 rx_bytes.add_metric([zone.player_name, device], value=float(iface.rxbytes))
                 tx_bytes.add_metric([zone.player_name, device], value=float(iface.txbytes))
                 rx_packets.add_metric([zone.player_name, device], value=float(iface.rxpkts))
@@ -62,9 +63,59 @@ class Collector(object):
         yield tx_packets
 
 
+Iface = namedtuple("Iface", "name rxbytes txbytes rxpkts txpkts")
+
+
 def get_ifconfig(body):
     tree = ElementTree.fromstring(body)
     return tree.find("Command[@cmdline='/sbin/ifconfig']").text
+
+
+def parse_ifconfig(text):
+    ifaces = []
+
+    blocks = text.strip().split("\n\n")
+    for block in blocks:
+        ifaces.append(parse_block(block))
+
+    return ifaces
+
+def parse_block(block):
+    # This is not exactly general purpose, but I'm figuring the upstream
+    # release cycle means the format won't change often.
+    #
+    # My devices are currently giving out blank line separated blocks
+    # like this:
+    #
+    # br0       Link encap:Ethernet  HWaddr B8:E9:37:52:6F:58
+    #           inet addr:192.168.78.5  Bcast:192.168.78.255  Mask:255.255.255.0
+    #           UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+    #           RX packets:1024606 errors:0 dropped:0 overruns:0 frame:0
+    #           TX packets:522396 errors:0 dropped:0 overruns:0 carrier:0
+    #           collisions:0 txqueuelen:0
+    #           RX bytes:574772233 (548.1 MiB)  TX bytes:230409343 (219.7 MiB)
+
+    name = re.search(r"^([^ ]+)", block).group(1)
+    rxbytes = txbytes = rxpkts = txpkts = None
+
+    m = re.search(r"RX bytes:(\d+)", block, re.I)
+    if m:
+        rxbytes = int(m.group(1))
+
+    m = re.search(r"TX bytes:(\d+)", block, re.I)
+    if m:
+        txbytes = int(m.group(1))
+
+    m = re.search(r"RX packets:(\d+)", block, re.I)
+    if m:
+        rxpkts = int(m.group(1))
+
+    m = re.search(r"TX packets:(\d+)", block, re.I)
+    if m:
+        txpkts = int(m.group(1))
+
+    return Iface(name=name, rxbytes=rxbytes, txbytes=txbytes, rxpkts=rxpkts, txpkts=txpkts)
+
 
 if __name__ == "__main__":
     main()
