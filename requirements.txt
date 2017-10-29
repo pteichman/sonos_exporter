@@ -1,0 +1,3 @@
+ifparser==0.7.0
+prometheus-client==0.0.21
+soco==0.12

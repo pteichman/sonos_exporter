@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+
+import argparse
+import http
+import http.server
+import ifparser
+import prometheus_client
+import requests
+import soco
+import xml.etree.ElementTree as ElementTree
+
+from prometheus_client.core import REGISTRY, CounterMetricFamily, GaugeMetricFamily
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Prometheus exporter for Sonos networks")
+    parser.add_argument("--address", default="localhost:1915",
+                        help="Network address for this server")
+
+    args = parser.parse_args()
+    host, port = args.address.split(":", 1)
+
+    REGISTRY.register(Collector())
+
+    server = http.server.HTTPServer((host, int(port)), prometheus_client.MetricsHandler)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        server.socket.close()
+
+
+class Collector(object):
+
+    def collect(self):
+        rx_bytes = GaugeMetricFamily("sonos_rx_bytes", "Received bytes",
+            labels=["player", "device"])
+        tx_bytes = GaugeMetricFamily("sonos_tx_bytes", "Transmitted bytes",
+            labels=["player", "device"])
+        rx_packets = GaugeMetricFamily("sonos_rx_packets", "Received packets",
+            labels=["player", "device"])
+        tx_packets = GaugeMetricFamily("sonos_tx_packets", "Transmitted packets",
+            labels=["player", "device"])
+
+        for zone in soco.discover():
+            url = "http://%s:1400/status/ifconfig" % zone.ip_address
+
+            ifconfig = get_ifconfig(requests.get(url).text)
+            ifdata = ifparser.Ifcfg(ifconfig)
+
+            for key in ifdata.interfaces:
+                iface = ifdata.get_interface(key)
+                device = key.split()[0]
+                rx_bytes.add_metric([zone.player_name, device], value=float(iface.rxbytes))
+                tx_bytes.add_metric([zone.player_name, device], value=float(iface.txbytes))
+                rx_packets.add_metric([zone.player_name, device], value=float(iface.rxpkts))
+                tx_packets.add_metric([zone.player_name, device], value=float(iface.txpkts))
+
+        yield rx_bytes
+        yield tx_bytes
+        yield rx_packets
+        yield tx_packets
+
+
+def get_ifconfig(body):
+    tree = ElementTree.fromstring(body)
+    return tree.find("Command[@cmdline='/sbin/ifconfig']").text
+
+if __name__ == "__main__":
+    main()
