@@ -34,6 +34,20 @@ def main():
 class Collector(object):
 
     def collect(self):
+        speaker = GaugeMetricFamily("sonos_speaker", "Sonos speaker info",
+            labels=[
+                "display_version",
+                "hardware_version",
+                "mac_address",
+                "model_name",
+                "model_number",
+                "player_icon",
+                "serial_number",
+                "software_version",
+                "uid",
+                "zone_name"
+            ])
+
         rx_bytes = GaugeMetricFamily("sonos_rx_bytes", "Received bytes",
             labels=["player", "device"])
         tx_bytes = GaugeMetricFamily("sonos_tx_bytes", "Transmitted bytes",
@@ -55,6 +69,20 @@ class Collector(object):
         if zones is None:
             return
         for zone in zones:
+            speaker_info = zone.get_speaker_info()
+            speaker.add_metric([
+                speaker_info.get("display_version", "null"),
+                speaker_info.get("hardware_version", "null"),
+                speaker_info.get("mac_address", "null"),
+                speaker_info.get("model_name", "null"),
+                speaker_info.get("model_number", "null"),
+                speaker_info.get("player_icon", "null"),
+                speaker_info.get("serial_number", "null"),
+                speaker_info.get("software_version", "null"),
+                speaker_info.get("uid", "null"),
+                speaker_info.get("zone_name", "null"),
+            ], value=1)
+
             interfaceUrl = "http://%s:1400/status/ifconfig" % zone.ip_address
             body = requests.get(interfaceUrl).text
             ifconfig = get_ifconfig(body)
@@ -81,6 +109,7 @@ class Collector(object):
 
             uptime.add_metric([zone.player_name], value=int(ut['UptimeSeconds']))
 
+        yield speaker
         yield rx_bytes
         yield tx_bytes
         yield rx_packets
