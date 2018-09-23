@@ -56,14 +56,6 @@ class Collector(object):
             labels=["player", "device"])
         tx_packets = GaugeMetricFamily("sonos_tx_packets", "Transmitted packets",
             labels=["player", "device"])
-        uptime = GaugeMetricFamily("sonos_uptime_seconds", "System Uptime Seconds",
-            labels=["player"])
-        loadAvg1 = GaugeMetricFamily("sonos_load1", "1m load average",
-            labels=["player"])
-        loadAvg5 = GaugeMetricFamily("sonos_load5", "5m load average",
-            labels=["player"])
-        loadAvg15 = GaugeMetricFamily("sonos_load15", "15m load average",
-            labels=["player"])
 
         zones = soco.discover()
         if zones is None:
@@ -95,37 +87,12 @@ class Collector(object):
                 rx_packets.add_metric([zone.player_name, device], value=float(iface.rxpkts))
                 tx_packets.add_metric([zone.player_name, device], value=float(iface.txpkts))
 
-            loadUrl = "http://%s:1400/status/uptime" % zone.ip_address
-            body = requests.get(loadUrl).text
-            load = get_load(body).replace(',', '').split()
-
-            loadAvg1.add_metric([zone.player_name], value=float(load[-3]))
-            loadAvg5.add_metric([zone.player_name], value=float(load[-2]))
-            loadAvg15.add_metric([zone.player_name], value=float(load[-1]))
-
-            zpUrl = "http://%s:1400/status/zp" % zone.ip_address
-            body = requests.get(zpUrl).text
-            ut = get_uptime(body)
-
-            uptime.add_metric([zone.player_name], value=int(ut['UptimeSeconds']))
-
         yield speaker
         yield rx_bytes
         yield tx_bytes
         yield rx_packets
         yield tx_packets
-        yield loadAvg1
-        yield loadAvg5
-        yield loadAvg15
-        yield uptime
 
-def get_uptime(body):
-    tree = ElementTree.fromstring(body)
-    return dict((x.tag, x.text) for x in tree[0])
-
-def get_load(body):
-    tree = ElementTree.fromstring(body)
-    return tree.find("Command[@cmdline='/usr/bin/uptime']").text.rstrip()
 
 def get_ifconfig(body):
     tree = ElementTree.fromstring(body)
