@@ -26,6 +26,7 @@ def main():
 
     server = http.server.HTTPServer((host, int(port)), prometheus_client.MetricsHandler)
     try:
+        print("Serving on " + args.address)
         server.serve_forever()
     except KeyboardInterrupt:
         server.socket.close()
@@ -57,9 +58,13 @@ class Collector(object):
         tx_packets = GaugeMetricFamily("sonos_tx_packets", "Transmitted packets",
             labels=["player", "device"])
 
+        print("Discovering Sonos...")    
         zones = soco.discover()
         if zones is None:
+            print("No Sonos discovered.")
             return
+        else:   
+            print(str(len(zones)) + " Sonos devices discovered")
         for zone in zones:
             speaker_info = zone.get_speaker_info()
             speaker.add_metric([
