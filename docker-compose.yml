@@ -1,0 +1,14 @@
+version: "3.1"
+
+services:
+  sonos:
+    tty: true
+    stdin_open: true
+    expose: 
+      - 1915
+    ports:
+      - 1915:1915
+    image: maxandersen/sonos_exporter
+    command:
+      - '--address=0.0.0.0:1915'
+    network_mode: host
