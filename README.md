@@ -33,3 +33,24 @@ It exports these stats:
 
 They'll be labeled with the Sonos zone name ("player") and network
 device ("device").
+
+From a Container
+================
+
+It is useful to run the exporter in a container; unfortunately Sonos discovery mechanism requires host network access. For now running from a container requires to run it on a Linux based system. Docker for Mac will not work.
+
+To run via docker:
+
+``` docker run --net=host -it maxandersen/sonos_exporter --address=0.0.0.0:1915```
+
+The important part is  `--net=host` to make Docker use the host network; and then `--address=0.0.0.0:1915` to tell it to bind to all interfaces. 
+
+You can of course also use your specific host ip, i.e. `192.168.1.10`
+
+There is also a docker compose file that does the same as above. To use it run the following:
+
+```docker-compose up -d```
+
+
+
+
