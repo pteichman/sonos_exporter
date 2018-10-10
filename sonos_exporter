@@ -46,6 +46,7 @@ class Collector(object):
                 "serial_number",
                 "software_version",
                 "uid",
+                "ip_address",
                 "zone_name"
             ])
 
@@ -77,6 +78,7 @@ class Collector(object):
                 speaker_info.get("serial_number", "null"),
                 speaker_info.get("software_version", "null"),
                 speaker_info.get("uid", "null"),
+                zone.ip_address,
                 speaker_info.get("zone_name", "null"),
             ], value=1)
 
