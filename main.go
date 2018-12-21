@@ -226,7 +226,7 @@ func collect(ch chan<- prometheus.Metric, loc string) {
 		ch <- prometheus.MustNewConstMetric(
 			rxBytes,
 			prometheus.GaugeValue,
-			float64(stats.rxBytes),
+			stats.rxBytes,
 			d.RoomName,
 			device,
 		)
@@ -234,7 +234,7 @@ func collect(ch chan<- prometheus.Metric, loc string) {
 		ch <- prometheus.MustNewConstMetric(
 			rxPackets,
 			prometheus.GaugeValue,
-			float64(stats.rxPackets),
+			stats.rxPackets,
 			d.RoomName,
 			device,
 		)
@@ -242,7 +242,7 @@ func collect(ch chan<- prometheus.Metric, loc string) {
 		ch <- prometheus.MustNewConstMetric(
 			txBytes,
 			prometheus.GaugeValue,
-			float64(stats.txBytes),
+			stats.txBytes,
 			d.RoomName,
 			device,
 		)
@@ -250,7 +250,7 @@ func collect(ch chan<- prometheus.Metric, loc string) {
 		ch <- prometheus.MustNewConstMetric(
 			txPackets,
 			prometheus.GaugeValue,
-			float64(stats.txPackets),
+			stats.txPackets,
 			d.RoomName,
 			device,
 		)
@@ -325,22 +325,22 @@ func fetchIfconfig(base *url.URL) (map[string]stats, error) {
 
 		m = rxBytesRe.FindStringSubmatch(text)
 		if len(m) > 1 {
-			s.rxBytes = atoi(m[1])
+			s.rxBytes = atof(m[1])
 		}
 
 		m = rxPacketsRe.FindStringSubmatch(text)
 		if len(m) > 1 {
-			s.rxPackets = atoi(m[1])
+			s.rxPackets = atof(m[1])
 		}
 
 		m = txBytesRe.FindStringSubmatch(text)
 		if len(m) > 1 {
-			s.txBytes = atoi(m[1])
+			s.txBytes = atof(m[1])
 		}
 
 		m = txPacketsRe.FindStringSubmatch(text)
 		if len(m) > 1 {
-			s.txPackets = atoi(m[1])
+			s.txPackets = atof(m[1])
 		}
 
 		name := ifaceNameRe.FindString(text)
@@ -352,8 +352,8 @@ func fetchIfconfig(base *url.URL) (map[string]stats, error) {
 	return ret, err
 }
 
-func atoi(num string) int {
-	v, err := strconv.Atoi(num)
+func atof(num string) float64 {
+	v, err := strconv.ParseFloat(num, 64)
 	if err != nil {
 		return 0
 	}
@@ -361,10 +361,10 @@ func atoi(num string) int {
 }
 
 type stats struct {
-	rxBytes   int
-	rxPackets int
-	txBytes   int
-	txPackets int
+	rxBytes   float64
+	rxPackets float64
+	txBytes   float64
+	txPackets float64
 }
 
 var (
