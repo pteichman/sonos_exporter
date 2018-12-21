@@ -1,4 +1,5 @@
 sonos_exporter
+dist
 
 # Binaries for programs and plugins
 *.exe
