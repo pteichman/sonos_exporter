@@ -13,6 +13,9 @@ builds:
       - linux
       - windows
       - darwin
+dockers:
+  - image_templates:
+      - pteichman/sonos_exporter
 archives:
   - replacements:
       darwin: Darwin
