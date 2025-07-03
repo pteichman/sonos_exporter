@@ -25,7 +25,14 @@ builds:
 
 dockers:
   - image_templates:
-      - pteichman/sonos_exporter
+    - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}"
+    - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:latest"
+    dockerfile: Dockerfile
+    build_flag_templates:
+    - "--label=org.opencontainers.image.created={{.Date}}"
+    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+    - "--label=org.opencontainers.image.version={{.Version}}"
+    - "--label=org.opencontainers.image.source={{.GitURL}}"
 
 archives:
   - formats: [tar.gz]
