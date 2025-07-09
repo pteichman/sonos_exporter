@@ -24,5 +24,5 @@ It exports these stats:
     * sonos_rx_bytes
     * sonos_tx_bytes
 
-They'll be labeled with the Sonos zone name ("player") and network
+They'll be labeled with the Sonos zone name ("player"), serial number ("serial_num") and network
 device ("device").

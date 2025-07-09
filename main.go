@@ -53,25 +53,25 @@ var (
 
 	rxBytes = prometheus.NewDesc(
 		"sonos_rx_bytes", "Received bytes",
-		[]string{"player", "device"},
+		[]string{"player", "device","serial_num"},
 		nil,
 	)
 
 	txBytes = prometheus.NewDesc(
 		"sonos_tx_bytes", "Transmitted bytes",
-		[]string{"player", "device"},
+		[]string{"player", "device","serial_num"},
 		nil,
 	)
 
 	rxPackets = prometheus.NewDesc(
 		"sonos_rx_packets", "Received packets",
-		[]string{"player", "device"},
+		[]string{"player", "device","serial_num"},
 		nil,
 	)
 
 	txPackets = prometheus.NewDesc(
 		"sonos_tx_packets", "Transmitted packets ",
-		[]string{"player", "device"},
+		[]string{"player", "device","serial_num"},
 		nil,
 	)
 )
@@ -229,6 +229,7 @@ func collect(ch chan<- prometheus.Metric, loc string) {
 			stats.rxBytes,
 			d.RoomName,
 			device,
+			d.SerialNum,
 		)
 
 		ch <- prometheus.MustNewConstMetric(
@@ -237,6 +238,7 @@ func collect(ch chan<- prometheus.Metric, loc string) {
 			stats.rxPackets,
 			d.RoomName,
 			device,
+			d.SerialNum,
 		)
 
 		ch <- prometheus.MustNewConstMetric(
@@ -245,6 +247,7 @@ func collect(ch chan<- prometheus.Metric, loc string) {
 			stats.txBytes,
 			d.RoomName,
 			device,
+			d.SerialNum,
 		)
 
 		ch <- prometheus.MustNewConstMetric(
@@ -253,6 +256,7 @@ func collect(ch chan<- prometheus.Metric, loc string) {
 			stats.txPackets,
 			d.RoomName,
 			device,
+			d.SerialNum,
 		)
 	}
 }
