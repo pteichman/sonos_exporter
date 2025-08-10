@@ -21,6 +21,7 @@ import (
 
 var (
 	flagAddress = flag.String("address", "localhost:1915", "Listen address")
+	flagTargets = flag.String("targets", "", "Sonos target addresses (host:port, comma separated)")
 
 	collectionDuration = prometheus.NewDesc(
 		"sonos_collection_duration",
@@ -76,20 +77,29 @@ var (
 	)
 )
 
-func init() {
-	prometheus.MustRegister(collectionErrors)
-	prometheus.MustRegister(collector{})
-}
-
 func main() {
 	flag.Parse()
+
+	var targets []string
+	if *flagTargets != "" {
+		for _, t := range strings.Split(*flagTargets, ",") {
+			targets = append(targets, "http://"+t+"/xml/device_description.xml")
+		}
+	}
+
+	prometheus.MustRegister(collectionErrors)
+	prometheus.MustRegister(collector{
+		Targets: targets,
+	})
 
 	log.Printf("Sonos exporter listening on %s", *flagAddress)
 	http.Handle("/metrics", promhttp.Handler())
 	log.Fatal(http.ListenAndServe(*flagAddress, nil))
 }
 
-type collector struct{}
+type collector struct {
+	Targets []string
+}
 
 // Describe implements Prometheus.Collector.
 func (c collector) Describe(ch chan<- *prometheus.Desc) {
@@ -100,21 +110,25 @@ func (c collector) Describe(ch chan<- *prometheus.Desc) {
 func (c collector) Collect(ch chan<- prometheus.Metric) {
 	start := time.Now()
 
-	found, err := Search("urn:schemas-upnp-org:device:ZonePlayer:1")
-	if err != nil {
-		log.Printf("Search: %s", err)
-		collectionErrors.Inc()
-		return
+	targets := c.Targets
+	if len(targets) == 0 {
+		found, err := Search("urn:schemas-upnp-org:device:ZonePlayer:1")
+		if err != nil {
+			log.Printf("Search: %s", err)
+			collectionErrors.Inc()
+			return
+		}
+		targets = append(targets, found...)
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(len(found))
+	wg.Add(len(targets))
 
-	for _, dev := range found {
-		go func(dev http.Header) {
-			collect(ch, dev.Get("Location"))
+	for _, target := range targets {
+		go func(target string) {
+			collect(ch, target)
 			wg.Done()
-		}(dev)
+		}(target)
 	}
 
 	wg.Wait()
@@ -124,11 +138,10 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 		prometheus.GaugeValue,
 		time.Since(start).Seconds(),
 	)
-
 }
 
 // Search performs an SDDP query via multicast.
-func Search(query string) ([]http.Header, error) {
+func Search(query string) ([]string, error) {
 	conn, err := net.ListenUDP("udp", nil)
 	if err != nil {
 		return nil, err
@@ -183,7 +196,12 @@ func Search(query string) ([]http.Header, error) {
 		}
 	}
 
-	return devices, nil
+	var locs []string
+	for _, device := range devices {
+		locs = append(locs, device.Get("Location"))
+	}
+
+	return locs, nil
 }
 
 func collect(ch chan<- prometheus.Metric, loc string) {
