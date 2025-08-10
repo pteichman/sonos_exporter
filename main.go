@@ -20,7 +20,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-
 func main() {
 	fs := flag.NewFlagSet("sonos_exporter", flag.ExitOnError)
 	flagAddress := fs.String("address", "localhost:1915", "Listen address")
@@ -45,19 +44,22 @@ func main() {
 }
 
 type collector struct {
-	Targets           []string
-	speakerInfo       *prometheus.Desc
-	rxBytes           *prometheus.Desc
-	txBytes           *prometheus.Desc
-	rxPackets         *prometheus.Desc
-	txPackets         *prometheus.Desc
+	targets []string
+
+	speakerInfo        *prometheus.Desc
+	rxBytes            *prometheus.Desc
+	txBytes            *prometheus.Desc
+	rxPackets          *prometheus.Desc
+	txPackets          *prometheus.Desc
 	collectionDuration *prometheus.Desc
 	collectionErrors   prometheus.Counter
 }
 
 func newCollector(targets []string) collector {
 	return collector{
-		Targets: targets,
+		// url:port targets to scrape. If present, disables SSDP search.
+		targets: targets,
+
 		speakerInfo: prometheus.NewDesc(
 			"sonos_speaker", "Sonos speaker info",
 			[]string{
@@ -121,7 +123,7 @@ func (c collector) Describe(ch chan<- *prometheus.Desc) {
 func (c collector) Collect(ch chan<- prometheus.Metric) {
 	start := time.Now()
 
-	targets := c.Targets
+	targets := c.targets
 	if len(targets) == 0 {
 		found, err := Search("urn:schemas-upnp-org:device:ZonePlayer:1")
 		if err != nil {
