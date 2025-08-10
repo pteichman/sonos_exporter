@@ -15,6 +15,16 @@ Running the exporter:
     $ ./sonos_exporter
     $ curl http://localhost:1915/metrics
 
+Or using docker-compose.yml:
+
+```
+services:
+  sonos_exporter:
+    image: ghcr.io/pteichman/sonos_exporter:latest
+    network_mode: host
+    command: ["./sonos_exporter", "-address", "0.0.0.0:1915"]
+```
+
 You can bind to another address and port with the --address flag.
 
 It exports these stats:
