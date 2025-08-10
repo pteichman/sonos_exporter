@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -20,9 +21,6 @@ import (
 )
 
 var (
-	flagAddress = flag.String("address", "localhost:1915", "Listen address")
-	flagTargets = flag.String("targets", "", "Sonos target addresses (host:port, comma separated)")
-
 	collectionDuration = prometheus.NewDesc(
 		"sonos_collection_duration",
 		"Total collection time",
@@ -78,7 +76,11 @@ var (
 )
 
 func main() {
-	flag.Parse()
+	fs := flag.NewFlagSet("sonos_exporter", flag.ExitOnError)
+	flagAddress := fs.String("address", "localhost:1915", "Listen address")
+	flagTargets := fs.String("targets", "", "Sonos target addresses (host:port, comma separated)")
+
+	fs.Parse(os.Args[1:])
 
 	var targets []string
 	if *flagTargets != "" {
