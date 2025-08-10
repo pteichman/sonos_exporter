@@ -20,60 +20,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-var (
-	collectionDuration = prometheus.NewDesc(
-		"sonos_collection_duration",
-		"Total collection time",
-		nil,
-		nil,
-	)
-
-	collectionErrors = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "sonos_collection_errors_total",
-			Help: "Errors observed when collecting devices",
-		},
-	)
-
-	speakerInfo = prometheus.NewDesc(
-		"sonos_speaker", "Sonos speaker info",
-		[]string{
-			"room_name",
-			"display_version",
-			"hardware_version",
-			"model_name",
-			"model_number",
-			"serial_num",
-			"software_version",
-			"udn",
-		},
-		nil,
-	)
-
-	rxBytes = prometheus.NewDesc(
-		"sonos_rx_bytes", "Received bytes",
-		[]string{"player", "device", "serial_num"},
-		nil,
-	)
-
-	txBytes = prometheus.NewDesc(
-		"sonos_tx_bytes", "Transmitted bytes",
-		[]string{"player", "device", "serial_num"},
-		nil,
-	)
-
-	rxPackets = prometheus.NewDesc(
-		"sonos_rx_packets", "Received packets",
-		[]string{"player", "device", "serial_num"},
-		nil,
-	)
-
-	txPackets = prometheus.NewDesc(
-		"sonos_tx_packets", "Transmitted packets ",
-		[]string{"player", "device", "serial_num"},
-		nil,
-	)
-)
 
 func main() {
 	fs := flag.NewFlagSet("sonos_exporter", flag.ExitOnError)
@@ -89,10 +35,9 @@ func main() {
 		}
 	}
 
-	prometheus.MustRegister(collectionErrors)
-	prometheus.MustRegister(collector{
-		Targets: targets,
-	})
+	c := newCollector(targets)
+	prometheus.MustRegister(c.collectionErrors)
+	prometheus.MustRegister(c)
 
 	log.Printf("Sonos exporter listening on %s", *flagAddress)
 	http.Handle("/metrics", promhttp.Handler())
@@ -100,12 +45,76 @@ func main() {
 }
 
 type collector struct {
-	Targets []string
+	Targets           []string
+	speakerInfo       *prometheus.Desc
+	rxBytes           *prometheus.Desc
+	txBytes           *prometheus.Desc
+	rxPackets         *prometheus.Desc
+	txPackets         *prometheus.Desc
+	collectionDuration *prometheus.Desc
+	collectionErrors   prometheus.Counter
+}
+
+func newCollector(targets []string) collector {
+	return collector{
+		Targets: targets,
+		speakerInfo: prometheus.NewDesc(
+			"sonos_speaker", "Sonos speaker info",
+			[]string{
+				"room_name",
+				"display_version",
+				"hardware_version",
+				"model_name",
+				"model_number",
+				"serial_num",
+				"software_version",
+				"udn",
+			},
+			nil,
+		),
+		rxBytes: prometheus.NewDesc(
+			"sonos_rx_bytes", "Received bytes",
+			[]string{"player", "device", "serial_num"},
+			nil,
+		),
+		txBytes: prometheus.NewDesc(
+			"sonos_tx_bytes", "Transmitted bytes",
+			[]string{"player", "device", "serial_num"},
+			nil,
+		),
+		rxPackets: prometheus.NewDesc(
+			"sonos_rx_packets", "Received packets",
+			[]string{"player", "device", "serial_num"},
+			nil,
+		),
+		txPackets: prometheus.NewDesc(
+			"sonos_tx_packets", "Transmitted packets ",
+			[]string{"player", "device", "serial_num"},
+			nil,
+		),
+		collectionDuration: prometheus.NewDesc(
+			"sonos_collection_duration",
+			"Total collection time",
+			nil,
+			nil,
+		),
+		collectionErrors: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "sonos_collection_errors_total",
+				Help: "Errors observed when collecting devices",
+			},
+		),
+	}
 }
 
 // Describe implements Prometheus.Collector.
 func (c collector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("dummy", "dummy", nil, nil)
+	ch <- c.speakerInfo
+	ch <- c.rxBytes
+	ch <- c.txBytes
+	ch <- c.rxPackets
+	ch <- c.txPackets
+	ch <- c.collectionDuration
 }
 
 // Collect implements Prometheus.Collector.
@@ -117,7 +126,7 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 		found, err := Search("urn:schemas-upnp-org:device:ZonePlayer:1")
 		if err != nil {
 			log.Printf("Search: %s", err)
-			collectionErrors.Inc()
+			c.collectionErrors.Inc()
 			return
 		}
 		targets = append(targets, found...)
@@ -128,7 +137,7 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 
 	for _, target := range targets {
 		go func(target string) {
-			collect(ch, target)
+			c.collect(ch, target)
 			wg.Done()
 		}(target)
 	}
@@ -136,7 +145,7 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 	wg.Wait()
 
 	ch <- prometheus.MustNewConstMetric(
-		collectionDuration,
+		c.collectionDuration,
 		prometheus.GaugeValue,
 		time.Since(start).Seconds(),
 	)
@@ -206,23 +215,23 @@ func Search(query string) ([]string, error) {
 	return locs, nil
 }
 
-func collect(ch chan<- prometheus.Metric, loc string) {
+func (c collector) collect(ch chan<- prometheus.Metric, loc string) {
 	base, err := url.Parse(loc)
 	if err != nil {
 		log.Printf("Parse %s: %s", loc, err)
-		collectionErrors.Inc()
+		c.collectionErrors.Inc()
 		return
 	}
 
 	d, err := fetchDevice(base)
 	if err != nil {
 		log.Printf("Get info %s: %s", loc, err)
-		collectionErrors.Inc()
+		c.collectionErrors.Inc()
 		return
 	}
 
 	ch <- prometheus.MustNewConstMetric(
-		speakerInfo,
+		c.speakerInfo,
 		prometheus.GaugeValue,
 		1,
 		d.RoomName,
@@ -238,13 +247,13 @@ func collect(ch chan<- prometheus.Metric, loc string) {
 	ifaces, err := fetchIfconfig(base)
 	if err != nil {
 		log.Printf("Get ifconfig %s: %s", loc, err)
-		collectionErrors.Inc()
+		c.collectionErrors.Inc()
 		return
 	}
 
 	for device, stats := range ifaces {
 		ch <- prometheus.MustNewConstMetric(
-			rxBytes,
+			c.rxBytes,
 			prometheus.GaugeValue,
 			stats.rxBytes,
 			d.RoomName,
@@ -253,7 +262,7 @@ func collect(ch chan<- prometheus.Metric, loc string) {
 		)
 
 		ch <- prometheus.MustNewConstMetric(
-			rxPackets,
+			c.rxPackets,
 			prometheus.GaugeValue,
 			stats.rxPackets,
 			d.RoomName,
@@ -262,7 +271,7 @@ func collect(ch chan<- prometheus.Metric, loc string) {
 		)
 
 		ch <- prometheus.MustNewConstMetric(
-			txBytes,
+			c.txBytes,
 			prometheus.GaugeValue,
 			stats.txBytes,
 			d.RoomName,
@@ -271,7 +280,7 @@ func collect(ch chan<- prometheus.Metric, loc string) {
 		)
 
 		ch <- prometheus.MustNewConstMetric(
-			txPackets,
+			c.txPackets,
 			prometheus.GaugeValue,
 			stats.txPackets,
 			d.RoomName,
