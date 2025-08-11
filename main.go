@@ -36,6 +36,7 @@ func main() {
 
 	c := newCollector(targets)
 	prometheus.MustRegister(c.collectionErrors)
+	prometheus.MustRegister(c.collectionDuration)
 	prometheus.MustRegister(c)
 
 	log.Printf("Sonos exporter listening on %s", *flagAddress)
@@ -62,7 +63,7 @@ type collector struct {
 	txPacketOverrunsTotal *prometheus.Desc
 	txPacketCarriersTotal *prometheus.Desc
 
-	collectionDuration *prometheus.Desc
+	collectionDuration prometheus.Histogram
 	collectionErrors   prometheus.Counter
 }
 
@@ -149,12 +150,10 @@ func newCollector(targets []string) collector {
 			nil,
 		),
 
-		collectionDuration: prometheus.NewDesc(
-			"sonos_collection_duration",
-			"Total collection time",
-			nil,
-			nil,
-		),
+		collectionDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name: "sonos_collection_duration_seconds",
+			Help: "Time spent collecting from all devices",
+		}),
 		collectionErrors: prometheus.NewCounter(
 			prometheus.CounterOpts{
 				Name: "sonos_collection_errors_total",
@@ -179,7 +178,6 @@ func (c collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.txPacketDropsTotal
 	ch <- c.txPacketOverrunsTotal
 	ch <- c.txPacketCarriersTotal
-	ch <- c.collectionDuration
 }
 
 // Collect implements Prometheus.Collector.
@@ -209,11 +207,7 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 
 	wg.Wait()
 
-	ch <- prometheus.MustNewConstMetric(
-		c.collectionDuration,
-		prometheus.GaugeValue,
-		time.Since(start).Seconds(),
-	)
+	c.collectionDuration.Observe(time.Since(start).Seconds())
 }
 
 // Search performs an SDDP query via multicast.
