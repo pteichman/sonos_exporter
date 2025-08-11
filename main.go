@@ -63,7 +63,7 @@ type collector struct {
 	txPacketOverrunsTotal *prometheus.Desc
 	txPacketCarriersTotal *prometheus.Desc
 
-	collectionDuration prometheus.Histogram
+	collectionDuration *prometheus.HistogramVec
 	collectionErrors   prometheus.Counter
 }
 
@@ -150,10 +150,10 @@ func newCollector(targets []string) collector {
 			nil,
 		),
 
-		collectionDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+		collectionDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name: "sonos_collection_duration_seconds",
-			Help: "Time spent collecting from all devices",
-		}),
+			Help: "Time spent collecting from each device",
+		}, []string{"room_name", "serial_num"}),
 		collectionErrors: prometheus.NewCounter(
 			prometheus.CounterOpts{
 				Name: "sonos_collection_errors_total",
@@ -182,8 +182,6 @@ func (c collector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect implements Prometheus.Collector.
 func (c collector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
 	targets := c.targets
 	if len(targets) == 0 {
 		found, err := Search("urn:schemas-upnp-org:device:ZonePlayer:1")
@@ -206,8 +204,6 @@ func (c collector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	wg.Wait()
-
-	c.collectionDuration.Observe(time.Since(start).Seconds())
 }
 
 // Search performs an SDDP query via multicast.
@@ -275,6 +271,8 @@ func Search(query string) ([]string, error) {
 }
 
 func (c collector) collect(ch chan<- prometheus.Metric, loc string) {
+	start := time.Now()
+
 	base, err := url.Parse(loc)
 	if err != nil {
 		log.Printf("Parse %s: %s", loc, err)
@@ -419,6 +417,8 @@ func (c collector) collect(ch chan<- prometheus.Metric, loc string) {
 			d.SerialNum,
 		)
 	}
+
+	c.collectionDuration.WithLabelValues(d.RoomName, d.SerialNum).Observe(time.Since(start).Seconds())
 }
 
 func fetchDevice(u *url.URL) (*Device, error) {
@@ -523,33 +523,33 @@ func atof(num string) float64 {
 }
 
 type stats struct {
-	rxBytes           float64
-	rxPackets         float64
-	rxPacketErrors    float64
-	rxPacketDrops     float64
-	rxPacketOverruns  float64
-	rxPacketFrames    float64
-	txBytes           float64
-	txPackets         float64
-	txPacketErrors    float64
-	txPacketDrops     float64
-	txPacketOverruns  float64
-	txPacketCarriers  float64
+	rxBytes          float64
+	rxPackets        float64
+	rxPacketErrors   float64
+	rxPacketDrops    float64
+	rxPacketOverruns float64
+	rxPacketFrames   float64
+	txBytes          float64
+	txPackets        float64
+	txPacketErrors   float64
+	txPacketDrops    float64
+	txPacketOverruns float64
+	txPacketCarriers float64
 }
 
 var (
 	ifaceNameRe = regexp.MustCompile(`^[^ ]+`)
 
-	rxBytesRe         = regexp.MustCompile(`RX.*bytes:(\d+)`)
-	rxPacketsRe       = regexp.MustCompile(`RX.*packets:(\d+)`)
-	rxPacketErrorsRe  = regexp.MustCompile(`RX.*errors:(\d+)`)
-	rxPacketDropsRe   = regexp.MustCompile(`RX.*dropped:(\d+)`)
-	rxPacketOverrunsRe = regexp.MustCompile(`RX.*overruns:(\d+)`)
-	rxPacketFramesRe  = regexp.MustCompile(`RX.*frame:(\d+)`)
-	txBytesRe         = regexp.MustCompile(`TX.*bytes:(\d+)`)
-	txPacketsRe       = regexp.MustCompile(`TX.*packets:(\d+)`)
-	txPacketErrorsRe  = regexp.MustCompile(`TX.*errors:(\d+)`)
-	txPacketDropsRe   = regexp.MustCompile(`TX.*dropped:(\d+)`)
-	txPacketOverrunsRe = regexp.MustCompile(`TX.*overruns:(\d+)`)
-	txPacketCarriersRe = regexp.MustCompile(`TX.*carrier:(\d+)`)
+	rxBytesRe          = regexp.MustCompile(`RX.*?bytes:(\d+)`)
+	rxPacketsRe        = regexp.MustCompile(`RX.*?packets:(\d+)`)
+	rxPacketErrorsRe   = regexp.MustCompile(`RX.*?errors:(\d+)`)
+	rxPacketDropsRe    = regexp.MustCompile(`RX.*?dropped:(\d+)`)
+	rxPacketOverrunsRe = regexp.MustCompile(`RX.*?overruns:(\d+)`)
+	rxPacketFramesRe   = regexp.MustCompile(`RX.*?frame:(\d+)`)
+	txBytesRe          = regexp.MustCompile(`TX.*?bytes:(\d+)`)
+	txPacketsRe        = regexp.MustCompile(`TX.*?packets:(\d+)`)
+	txPacketErrorsRe   = regexp.MustCompile(`TX.*?errors:(\d+)`)
+	txPacketDropsRe    = regexp.MustCompile(`TX.*?dropped:(\d+)`)
+	txPacketOverrunsRe = regexp.MustCompile(`TX.*?overruns:(\d+)`)
+	txPacketCarriersRe = regexp.MustCompile(`TX.*?carrier:(\d+)`)
 )
