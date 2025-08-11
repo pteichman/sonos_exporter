@@ -73,7 +73,7 @@ func newCollector(targets []string) collector {
 		targets: targets,
 
 		speakerInfo: prometheus.NewDesc(
-			"sonos_speaker", "Sonos speaker info",
+			"sonos_speaker_info", "Sonos speaker info",
 			[]string{
 				"room_name",
 				"display_version",
