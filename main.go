@@ -46,11 +46,22 @@ func main() {
 type collector struct {
 	targets []string
 
-	speakerInfo        *prometheus.Desc
-	rxBytes            *prometheus.Desc
-	txBytes            *prometheus.Desc
-	rxPackets          *prometheus.Desc
-	txPackets          *prometheus.Desc
+	speakerInfo *prometheus.Desc
+
+	rxBytesTotal *prometheus.Desc
+	txBytesTotal *prometheus.Desc
+
+	rxPacketsTotal        *prometheus.Desc
+	rxPacketErrorsTotal   *prometheus.Desc
+	rxPacketDropsTotal    *prometheus.Desc
+	rxPacketOverrunsTotal *prometheus.Desc
+	rxPacketFramesTotal   *prometheus.Desc
+	txPacketsTotal        *prometheus.Desc
+	txPacketErrorsTotal   *prometheus.Desc
+	txPacketDropsTotal    *prometheus.Desc
+	txPacketOverrunsTotal *prometheus.Desc
+	txPacketCarriersTotal *prometheus.Desc
+
 	collectionDuration *prometheus.Desc
 	collectionErrors   prometheus.Counter
 }
@@ -74,26 +85,70 @@ func newCollector(targets []string) collector {
 			},
 			nil,
 		),
-		rxBytes: prometheus.NewDesc(
-			"sonos_rx_bytes", "Received bytes",
+
+		rxBytesTotal: prometheus.NewDesc(
+			"sonos_rx_bytes_total", "Received bytes",
 			[]string{"player", "device", "serial_num"},
 			nil,
 		),
-		txBytes: prometheus.NewDesc(
-			"sonos_tx_bytes", "Transmitted bytes",
+		txBytesTotal: prometheus.NewDesc(
+			"sonos_tx_bytes_total", "Transmitted bytes",
 			[]string{"player", "device", "serial_num"},
 			nil,
 		),
-		rxPackets: prometheus.NewDesc(
-			"sonos_rx_packets", "Received packets",
+
+		rxPacketsTotal: prometheus.NewDesc(
+			"sonos_rx_packets_total", "Received packets",
 			[]string{"player", "device", "serial_num"},
 			nil,
 		),
-		txPackets: prometheus.NewDesc(
-			"sonos_tx_packets", "Transmitted packets ",
+		rxPacketErrorsTotal: prometheus.NewDesc(
+			"sonos_rx_packet_errors_total", "Received packet errors",
 			[]string{"player", "device", "serial_num"},
 			nil,
 		),
+		rxPacketDropsTotal: prometheus.NewDesc(
+			"sonos_rx_packet_drops_total", "Received packet drops",
+			[]string{"player", "device", "serial_num"},
+			nil,
+		),
+		rxPacketOverrunsTotal: prometheus.NewDesc(
+			"sonos_rx_packet_overruns_total", "Received packet overruns",
+			[]string{"player", "device", "serial_num"},
+			nil,
+		),
+		rxPacketFramesTotal: prometheus.NewDesc(
+			"sonos_rx_packet_frames_total", "Received packet frame errors",
+			[]string{"player", "device", "serial_num"},
+			nil,
+		),
+
+		txPacketsTotal: prometheus.NewDesc(
+			"sonos_tx_packets_total", "Transmitted packets",
+			[]string{"player", "device", "serial_num"},
+			nil,
+		),
+		txPacketErrorsTotal: prometheus.NewDesc(
+			"sonos_tx_packet_errors_total", "Transmitted packet errors",
+			[]string{"player", "device", "serial_num"},
+			nil,
+		),
+		txPacketDropsTotal: prometheus.NewDesc(
+			"sonos_tx_packet_drops_total", "Transmitted packet drops",
+			[]string{"player", "device", "serial_num"},
+			nil,
+		),
+		txPacketOverrunsTotal: prometheus.NewDesc(
+			"sonos_tx_packet_overruns_total", "Transmitted packet overruns",
+			[]string{"player", "device", "serial_num"},
+			nil,
+		),
+		txPacketCarriersTotal: prometheus.NewDesc(
+			"sonos_tx_packet_carriers_total", "Transmitted packet carrier errors",
+			[]string{"player", "device", "serial_num"},
+			nil,
+		),
+
 		collectionDuration: prometheus.NewDesc(
 			"sonos_collection_duration",
 			"Total collection time",
@@ -112,10 +167,18 @@ func newCollector(targets []string) collector {
 // Describe implements Prometheus.Collector.
 func (c collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.speakerInfo
-	ch <- c.rxBytes
-	ch <- c.txBytes
-	ch <- c.rxPackets
-	ch <- c.txPackets
+	ch <- c.rxBytesTotal
+	ch <- c.txBytesTotal
+	ch <- c.rxPacketsTotal
+	ch <- c.rxPacketErrorsTotal
+	ch <- c.rxPacketDropsTotal
+	ch <- c.rxPacketOverrunsTotal
+	ch <- c.rxPacketFramesTotal
+	ch <- c.txPacketsTotal
+	ch <- c.txPacketErrorsTotal
+	ch <- c.txPacketDropsTotal
+	ch <- c.txPacketOverrunsTotal
+	ch <- c.txPacketCarriersTotal
 	ch <- c.collectionDuration
 }
 
@@ -255,8 +318,8 @@ func (c collector) collect(ch chan<- prometheus.Metric, loc string) {
 
 	for device, stats := range ifaces {
 		ch <- prometheus.MustNewConstMetric(
-			c.rxBytes,
-			prometheus.GaugeValue,
+			c.rxBytesTotal,
+			prometheus.CounterValue,
 			stats.rxBytes,
 			d.RoomName,
 			device,
@@ -264,8 +327,8 @@ func (c collector) collect(ch chan<- prometheus.Metric, loc string) {
 		)
 
 		ch <- prometheus.MustNewConstMetric(
-			c.rxPackets,
-			prometheus.GaugeValue,
+			c.rxPacketsTotal,
+			prometheus.CounterValue,
 			stats.rxPackets,
 			d.RoomName,
 			device,
@@ -273,8 +336,44 @@ func (c collector) collect(ch chan<- prometheus.Metric, loc string) {
 		)
 
 		ch <- prometheus.MustNewConstMetric(
-			c.txBytes,
-			prometheus.GaugeValue,
+			c.rxPacketErrorsTotal,
+			prometheus.CounterValue,
+			stats.rxPacketErrors,
+			d.RoomName,
+			device,
+			d.SerialNum,
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			c.rxPacketDropsTotal,
+			prometheus.CounterValue,
+			stats.rxPacketDrops,
+			d.RoomName,
+			device,
+			d.SerialNum,
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			c.rxPacketOverrunsTotal,
+			prometheus.CounterValue,
+			stats.rxPacketOverruns,
+			d.RoomName,
+			device,
+			d.SerialNum,
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			c.rxPacketFramesTotal,
+			prometheus.CounterValue,
+			stats.rxPacketFrames,
+			d.RoomName,
+			device,
+			d.SerialNum,
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			c.txBytesTotal,
+			prometheus.CounterValue,
 			stats.txBytes,
 			d.RoomName,
 			device,
@@ -282,9 +381,45 @@ func (c collector) collect(ch chan<- prometheus.Metric, loc string) {
 		)
 
 		ch <- prometheus.MustNewConstMetric(
-			c.txPackets,
-			prometheus.GaugeValue,
+			c.txPacketsTotal,
+			prometheus.CounterValue,
 			stats.txPackets,
+			d.RoomName,
+			device,
+			d.SerialNum,
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			c.txPacketErrorsTotal,
+			prometheus.CounterValue,
+			stats.txPacketErrors,
+			d.RoomName,
+			device,
+			d.SerialNum,
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			c.txPacketDropsTotal,
+			prometheus.CounterValue,
+			stats.txPacketDrops,
+			d.RoomName,
+			device,
+			d.SerialNum,
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			c.txPacketOverrunsTotal,
+			prometheus.CounterValue,
+			stats.txPacketOverruns,
+			d.RoomName,
+			device,
+			d.SerialNum,
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			c.txPacketCarriersTotal,
+			prometheus.CounterValue,
+			stats.txPacketCarriers,
 			d.RoomName,
 			device,
 			d.SerialNum,
@@ -346,7 +481,7 @@ func fetchIfconfig(base *url.URL) (map[string]stats, error) {
 	//           RX packets:1558 errors:0 dropped:0 overruns:0 frame:0
 	//           TX packets:1558 errors:0 dropped:0 overruns:0 carrier:0
 	//           collisions:0 txqueuelen:0
-	//           RX bytes:263284 (257.1 KiB)  TX bytes:263284 (257.1
+	//           RX bytes:263284 (257.1 KiB)  TX bytes:263284 (257.1 KiB)
 
 	ret := make(map[string]stats)
 
@@ -355,36 +490,34 @@ func fetchIfconfig(base *url.URL) (map[string]stats, error) {
 			continue
 		}
 
-		var m []string
-		var s stats
-
-		m = rxBytesRe.FindStringSubmatch(text)
-		if len(m) > 1 {
-			s.rxBytes = atof(m[1])
-		}
-
-		m = rxPacketsRe.FindStringSubmatch(text)
-		if len(m) > 1 {
-			s.rxPackets = atof(m[1])
-		}
-
-		m = txBytesRe.FindStringSubmatch(text)
-		if len(m) > 1 {
-			s.txBytes = atof(m[1])
-		}
-
-		m = txPacketsRe.FindStringSubmatch(text)
-		if len(m) > 1 {
-			s.txPackets = atof(m[1])
-		}
-
-		name := ifaceNameRe.FindString(text)
-		if name != "" {
-			ret[name] = s
+		ifaceName := ifaceNameRe.FindString(text)
+		if ifaceName != "" {
+			ret[ifaceName] = stats{
+				rxBytes:          regexpFloat(rxBytesRe, text),
+				rxPackets:        regexpFloat(rxPacketsRe, text),
+				rxPacketErrors:   regexpFloat(rxPacketErrorsRe, text),
+				rxPacketDrops:    regexpFloat(rxPacketDropsRe, text),
+				rxPacketOverruns: regexpFloat(rxPacketOverrunsRe, text),
+				rxPacketFrames:   regexpFloat(rxPacketFramesRe, text),
+				txBytes:          regexpFloat(txBytesRe, text),
+				txPackets:        regexpFloat(txPacketsRe, text),
+				txPacketErrors:   regexpFloat(txPacketErrorsRe, text),
+				txPacketDrops:    regexpFloat(txPacketDropsRe, text),
+				txPacketOverruns: regexpFloat(txPacketOverrunsRe, text),
+				txPacketCarriers: regexpFloat(txPacketCarriersRe, text),
+			}
 		}
 	}
 
 	return ret, err
+}
+
+func regexpFloat(re *regexp.Regexp, text string) float64 {
+	m := re.FindStringSubmatch(text)
+	if len(m) > 1 {
+		return atof(m[1])
+	}
+	return 0
 }
 
 func atof(num string) float64 {
@@ -396,16 +529,33 @@ func atof(num string) float64 {
 }
 
 type stats struct {
-	rxBytes   float64
-	rxPackets float64
-	txBytes   float64
-	txPackets float64
+	rxBytes           float64
+	rxPackets         float64
+	rxPacketErrors    float64
+	rxPacketDrops     float64
+	rxPacketOverruns  float64
+	rxPacketFrames    float64
+	txBytes           float64
+	txPackets         float64
+	txPacketErrors    float64
+	txPacketDrops     float64
+	txPacketOverruns  float64
+	txPacketCarriers  float64
 }
 
 var (
 	ifaceNameRe = regexp.MustCompile(`^[^ ]+`)
-	rxBytesRe   = regexp.MustCompile(`RX bytes:(\d+)`)
-	rxPacketsRe = regexp.MustCompile(`RX packets:(\d+)`)
-	txBytesRe   = regexp.MustCompile(`TX bytes:(\d+)`)
-	txPacketsRe = regexp.MustCompile(`TX packets:(\d+)`)
+
+	rxBytesRe         = regexp.MustCompile(`RX.*bytes:(\d+)`)
+	rxPacketsRe       = regexp.MustCompile(`RX.*packets:(\d+)`)
+	rxPacketErrorsRe  = regexp.MustCompile(`RX.*errors:(\d+)`)
+	rxPacketDropsRe   = regexp.MustCompile(`RX.*dropped:(\d+)`)
+	rxPacketOverrunsRe = regexp.MustCompile(`RX.*overruns:(\d+)`)
+	rxPacketFramesRe  = regexp.MustCompile(`RX.*frame:(\d+)`)
+	txBytesRe         = regexp.MustCompile(`TX.*bytes:(\d+)`)
+	txPacketsRe       = regexp.MustCompile(`TX.*packets:(\d+)`)
+	txPacketErrorsRe  = regexp.MustCompile(`TX.*errors:(\d+)`)
+	txPacketDropsRe   = regexp.MustCompile(`TX.*dropped:(\d+)`)
+	txPacketOverrunsRe = regexp.MustCompile(`TX.*overruns:(\d+)`)
+	txPacketCarriersRe = regexp.MustCompile(`TX.*carrier:(\d+)`)
 )
